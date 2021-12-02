@@ -521,7 +521,7 @@ int zbd_report_zones(int fd, off_t ofst, off_t len, enum zbd_report_option ro,
 		     struct zbd_zone *zones, unsigned int *nr_zones)
 {
 	struct zbd_info *zbdi = zbd_get_fd(fd);
-	unsigned long long zone_size_mask, end;
+	unsigned long long end;
 	struct blk_zone_report *rep;
 	size_t rep_size;
 	unsigned int rep_nr_zones;
@@ -554,16 +554,15 @@ int zbd_report_zones(int fd, off_t ofst, off_t len, enum zbd_report_option ro,
 		nrz = 0;
 	}
 
-	zone_size_mask = zbdi->zone_size - 1;
 	if (len == 0)
 		len = zbdi->nr_sectors << SECTOR_SHIFT;
 
-	end = ((ofst + len + zone_size_mask) & (~zone_size_mask))
-		>> SECTOR_SHIFT;
+	end = (((ofst + len + (zbdi->zone_size - 1)) / zbdi->zone_size) *
+		zbdi->zone_size) >> SECTOR_SHIFT;
 	if (end > zbdi->nr_sectors)
 		end = zbdi->nr_sectors;
 
-	ofst = (ofst & (~zone_size_mask)) >> SECTOR_SHIFT;
+	ofst = (ofst / zbdi->zone_size) * zbdi->zone_size >> SECTOR_SHIFT;
 	if ((unsigned long long)ofst >= zbdi->nr_sectors) {
 		*nr_zones = 0;
 		return 0;
@@ -696,7 +695,7 @@ out:
 int zbd_zones_operation(int fd, enum zbd_zone_op op, off_t ofst, off_t len)
 {
 	struct zbd_info *zbdi = zbd_get_fd(fd);
-	unsigned long long zone_size_mask, end;
+	unsigned long long end;
 	struct blk_zone_range range;
 	const char *ioctl_name;
 	unsigned long ioctl_op;
@@ -707,12 +706,11 @@ int zbd_zones_operation(int fd, enum zbd_zone_op op, off_t ofst, off_t len)
 		return -1;
 	}
 
-	zone_size_mask = zbdi->zone_size - 1;
 	if (len == 0)
 		len = zbdi->nr_sectors << SECTOR_SHIFT;
 
-	end = ((ofst + len + zone_size_mask) & (~zone_size_mask))
-		>> SECTOR_SHIFT;
+	end = (((ofst + len + (zbdi->zone_size - 1)) / zbdi->zone_size) *
+		zbdi->zone_size) >> SECTOR_SHIFT;
 	if (end > zbdi->nr_sectors)
 		end = zbdi->nr_sectors;
 
@@ -740,7 +738,7 @@ int zbd_zones_operation(int fd, enum zbd_zone_op op, off_t ofst, off_t len)
 		return -1;
 	}
 
-	ofst = (ofst & (~zone_size_mask)) >> SECTOR_SHIFT;
+	ofst = ((ofst / zbdi->zone_size) * zbdi->zone_size) >> SECTOR_SHIFT;
 	if ((unsigned long long)ofst >= zbdi->nr_sectors ||
 	    end == (unsigned long long)ofst)
 		return 0;
